@@ -1,96 +1,90 @@
 # Simple Chatbot with Streamlit
 
-A lightweight Streamlit chatbot app that uses Google Gemini through LangChain and LangGraph.
+This repository demonstrates a compact Streamlit chatbot that routes prompts to Google Gemini via LangChain and orchestrates state using LangGraph. It includes two Streamlit frontends (a synchronous UI and a streaming UI), a small backend workflow, and lightweight styling.
 
-## Overview
+**Key ideas**
+- Conversation state is managed with LangGraph's `StateGraph` and checkpointed using `MemorySaver`.
+- The language model is `ChatGoogleGenerativeAI` (Gemini). Prompts are built with `ChatPromptTemplate`.
+- Two frontends: `frontend.py` (synchronous request/response) and `frontend_streaming.py` (streams assistant output chunks).
 
-This project demonstrates a simple conversational AI interface with:
+**Files**
+- `backend.py`: defines the `StateGraph`, the `chat` node/function, model initialization, memory saver, and `workflow` object used by the frontends.
+- `frontend.py`: Streamlit chat UI that invokes `workflow.invoke(...)` and displays responses after the model returns.
+- `frontend_streaming.py`: Streamlit chat UI that consumes chunks from `workflow.stream(...)` and writes assistant output progressively with `st.write_stream()`.
+- `style.py`: CSS and small HTML snippets used by both frontends for consistent appearance.
+- `requirements.txt`: project dependencies (install via pip).
 
-- `Streamlit` for the web UI
-- `langgraph` for workflow state management
-- `langchain-google-genai` and `ChatGoogleGenerativeAI` for Google Gemini model access
-- `dotenv` for environment-based credentials
+Requirements
+- Python 3.11+ recommended.
+- A Google API credential for Gemini access. Depending on the library configuration you can provide an API key or application credentials via environment variables.
 
-The frontend renders a chat interface, while the backend defines a `StateGraph` workflow with a single chat node.
+Environment
+- Create a `.env` file at the project root (the code uses `python-dotenv`) and set one of the expected credentials. Example options:
 
-## Features
+- API key approach (simple):
 
-- Streamlit chat UI with user and assistant message bubbles
-- Gemini model prompt pipeline using system + human role messages
-- Stateful conversation memory via LangGraph checkpointing
-- Custom page styling from `style.py`
+	GOOGLE_API_KEY=your_google_api_key
 
-## Project files
+- Service account / application default credentials approach (recommended for production):
 
-- `frontend.py` - Streamlit app entry point
-- `backend.py` - Chat workflow, model setup, and state graph definition
-- `style.py` - UI styles and welcome card HTML
-- `requirements.txt` - pinned Python dependencies
-- `README.md` - project documentation
+	GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 
-## Prerequisites
+Note: The exact variable name accepted depends on the Google/connector library you use. `ChatGoogleGenerativeAI` typically reads application default credentials or an API key.
 
-- Python 3.11+ recommended
-- Google Cloud credentials for Gemini access
-- `pip` installed
-
-## Setup
-
-1. Create and activate a virtual environment:
+Quickstart
+1. Create and activate a virtual environment
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-2. Install dependencies:
+2. Install dependencies
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-3. Create a `.env` file in the project root with your Google credentials.
+3. Add credentials to `.env` (see Environment section).
 
-Example using an API key:
-
-```env
-GOOGLE_API_KEY=your_google_api_key
-```
-
-4. Start the app:
+4a. Run the synchronous frontend
 
 ```powershell
 streamlit run frontend.py
 ```
 
-5. Open the local URL printed by Streamlit in your browser.
-
-## Usage
-
-- Type a message in the chat input at the bottom of the page.
-- The assistant sends the prompt to Gemini with recent conversation context.
-- Responses appear as assistant messages in the chat history.
-
-## Notes
-
-- `backend.py` uses `ChatPromptTemplate.from_messages` to format a system message and a human message.
-- The chat history is trimmed to the last 2 exchanges before sending context to the model.
-- The UI currently uses a single `thread_id` stored in `st.session_state`.
-
-## Troubleshooting
-
-- If the app cannot authenticate, verify your `.env` values and Google credentials.
-- If Gemini model calls fail, ensure the model name `gemini-3.1-flash-lite` is available in your Google project.
-- If Streamlit styling does not render, confirm `unsafe_allow_html=True` is enabled for HTML markdown.
-
-## Dependency management
-
-Use `requirements.txt` to reinstall exact versions.
+4b. Run the streaming frontend (progressive assistant output)
 
 ```powershell
-python -m pip install -r requirements.txt
+streamlit run frontend_streaming.py
 ```
 
-## License
+Implementation notes (analysis)
+- Model initialization: the code constructs `model = ChatGoogleGenerativeAI(model='gemini-3.1-flash-lite')` in `backend.py`. Change the model string if your project should use a different Gemini release or a custom model.
+- Prompt construction: `ChatPromptTemplate.from_messages` uses a system message plus a human template that receives `context` and `question`.
+- Chat history trimming: before calling the model the backend keeps only the last 2 exchanges (`chat_history = state['chat_history'][-2:]`), which keeps prompts small. Adjust the slice if you want longer context.
+- Memory and state: `MemorySaver` is used as the checkpointer for `StateGraph.compile(...)`. That means conversation snapshots persist between workflow runs (depending on how MemorySaver is configured).
+- Frontend config: both frontends set `config = { 'configurable': { 'thread_id': st.session_state['thread_id'] } }` and pass that into workflow calls. That `thread_id` drives per-user/per-thread checkpointing.
+- Streaming: `frontend_streaming.py` consumes `workflow.stream(..., stream_mode='messages')` and expects chunks whose `.content` may be a list of blocks with `type: 'text'` entries; the code yields block text to `st.write_stream()`.
 
-This repository has no license specified.
+Troubleshooting & tips
+- Authentication errors: verify `.env` values and ensure the Google credential file path is readable. For API key usage, confirm the key has access to the Gemini API in your Google project.
+- Model errors / missing model: confirm the model name (e.g., `gemini-3.1-flash-lite`) is available to your Google project and the client library version supports it.
+- Large prompts / timeouts: if you see timeouts or truncated responses, reduce the number of history items sent or paginate long documents before including them in `context`.
+- Styling not applied: both frontends call `st.markdown(..., unsafe_allow_html=True)` for raw CSS/HTML. If styling doesn't appear, ensure Streamlit version supports the CSS targets used in `style.py`.
+
+Extending
+- Increase conversation memory: change the trimming logic in `backend.py` to include more history, or add a retrieval step to inject relevant context from a vector DB.
+- Add user IDs: `st.session_state['thread_id']` is currently a simple static value. Integrate a proper user/session identifier if deploying to multiple users.
+
+What's changed in this README
+- Expanded file descriptions and clear quickstart commands for both frontends.
+- Added explanation of state, memory saver, prompt trimming, and streaming behavior.
+- Documented environment/credential options and common troubleshooting steps.
+
+Next steps you might want me to do
+- Add example `.env.example` with a minimal set of env vars.
+- Validate and pin the `requirements.txt` packages to the minimal working set.
+- Add a short demo script or sample conversation recorded in `examples/`.
+
+If you'd like I can also open a PR with these changes, run the app locally, or add an `.env.example` file.

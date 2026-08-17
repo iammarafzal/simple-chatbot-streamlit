@@ -1,6 +1,6 @@
 import streamlit as st
-from backend import workflow, memory
-from style import MAIN_STYLE, HEADER_STYLE, BODY_STYLE
+from backend.backend import workflow, memory
+from ..style import MAIN_STYLE, HEADER_STYLE, BODY_STYLE
 from uuid import uuid4
 
 # ****************************** UNTILITES ******************************

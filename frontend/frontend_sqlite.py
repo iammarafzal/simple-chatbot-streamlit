@@ -1,6 +1,6 @@
 import streamlit as st
-from backend_sqlite import workflow, checkpointer, get_all_thread_ids
-from style import MAIN_STYLE, HEADER_STYLE, BODY_STYLE
+from backend.backend_sqlite import workflow, checkpointer, get_all_thread_ids
+from ..style import MAIN_STYLE, HEADER_STYLE, BODY_STYLE
 from uuid import uuid4
 
 # ****************************** UNTILITES ******************************

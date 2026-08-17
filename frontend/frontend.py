@@ -1,6 +1,6 @@
 import streamlit as st
-from backend import workflow
-from style import MAIN_STYLE, HEADER_STYLE, BODY_STYLE
+from backend.backend import workflow
+from ..style import MAIN_STYLE, HEADER_STYLE, BODY_STYLE
 
 st.set_page_config(
     page_title="My ChatBot",
@@ -54,19 +54,7 @@ user_input = st.chat_input(
     "Message your AI assistant..."
 )
 
-def stream_response():
-    for chunk, metadata in workflow.stream({
-        'message': user_input,
-        'chat_history': []
-    }, config=config, stream_mode='messages'):
-        if isinstance(chunk.content, list):
-            for block in chunk.content:
-                if block.get("type") == "text":
-                    yield block['text']
-                else:
-                    yield block
 
-        
 if user_input:
 
     # Show user message immediately
@@ -74,5 +62,18 @@ if user_input:
         st.write(user_input)
 
     with st.chat_message("assistant"):
-        st.write_stream(stream_response())
+
+        with st.spinner("Thinking..."):
+
+            state = workflow.invoke(
+                {
+                    "message": user_input,
+                    "chat_history": []
+                },
+                config=config
+            )
+
+            response = state["response"]
+
+        st.write(response)
 
